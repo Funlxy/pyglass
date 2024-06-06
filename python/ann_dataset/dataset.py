@@ -62,15 +62,19 @@ class Dataset:
 
 
 def download(name):
-    url = f'https://huggingface.co/datasets/hhy3/ann-datasets/resolve/main/{name}.hdf5'
+    # url = f'https://huggingface.co/datasets/hhy3/ann-datasets/resolve/main/{name}.hdf5'
+    url = f'https://hf-mirror.com/datasets/hhy3/ann-datasets/resolve/main/{name}.hdf5'
+
     return url
 
 
 class DatasetSIFT1M(Dataset):
-    name = "sift-128-euclidean"
-    metric = "L2"
+
 
     def __init__(self, dir=None):
+        super().__init__()
+        self.name = "sift-128-euclidean"
+        self.metric = "L2"
         path = self.get_fname(dir)
         if not os.path.exists(path):
             os.system(f'wget --output-document {path} {download(self.name)}')
@@ -78,10 +82,12 @@ class DatasetSIFT1M(Dataset):
 
 
 class DatasetFashionMnist(Dataset):
-    name = "fashion-mnist-784-euclidean"
-    metric = "L2"
+
 
     def __init__(self, dir=None):
+        super().__init__()
+        self.name = "fashion-mnist-784-euclidean"
+        self.metric = "L2"
         path = self.get_fname(dir)
         if not os.path.exists(path):
             os.system(f'wget --output-document {path} {download(self.name)}')
@@ -89,10 +95,12 @@ class DatasetFashionMnist(Dataset):
 
 
 class DatasetNYTimes(Dataset):
-    name = "nytimes-256-angular"
-    metric = "IP"
+
 
     def __init__(self, dir=None):
+        super().__init__()
+        self.name = "nytimes-256-angular"
+        self.metric = "IP"
         path = self.get_fname(dir)
         if not os.path.exists(path):
             os.system(f'wget --output-document {path} {download(self.name)}')
@@ -100,10 +108,11 @@ class DatasetNYTimes(Dataset):
 
 
 class DatasetGlove100(Dataset):
-    name = "glove-100-angular"
-    metric = "IP"
 
     def __init__(self, dir=None):
+        super().__init__()
+        self.name = "glove-100-angular"
+        self.metric = "IP"
         path = self.get_fname(dir)
         if not os.path.exists(path):
             os.system(f'wget --output-document {path} {download(self.name)}')
@@ -111,10 +120,12 @@ class DatasetGlove100(Dataset):
 
 
 class DatasetGlove25(Dataset):
-    name = "glove-25-angular"
-    metric = "IP"
+
 
     def __init__(self, dir=None):
+        super().__init__()
+        self.name = "glove-25-angular"
+        self.metric = "IP"
         path = self.get_fname(dir)
         if not os.path.exists(path):
             os.system(f'wget --output-document {path} {download(self.name)}')
@@ -122,10 +133,12 @@ class DatasetGlove25(Dataset):
 
 
 class DatasetLastFM64(Dataset):
-    name = "lastfm-64-dot"
-    metric = "IP"
+
 
     def __init__(self, dir=None):
+        super().__init__()
+        self.name = "lastfm-64-dot"
+        self.metric = "IP"
         path = self.get_fname(dir)
         if not os.path.exists(path):
             os.system(f'wget --output-document {path} {download(self.name)}')
@@ -133,10 +146,12 @@ class DatasetLastFM64(Dataset):
 
 
 class DatasetGIST960(Dataset):
-    name = "gist-960-euclidean"
-    metric = "L2"
+
 
     def __init__(self, dir=None):
+        super().__init__()
+        self.name = "gist-960-euclidean"
+        self.metric = "L2"
         path = self.get_fname(dir)
         if not os.path.exists(path):
             os.system(f'wget --output-document {path} {download(self.name)}')

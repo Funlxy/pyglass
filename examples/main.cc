@@ -4,59 +4,96 @@
 #include <iostream>
 #include <set>
 #include <string>
+#include <boost/program_options.hpp>
 
 #include "glass/hnsw/hnsw.hpp"
 #include "glass/nsg/nndescent.hpp"
 #include "glass/nsg/nsg.hpp"
 #include "glass/searcher.hpp"
+namespace po = boost::program_options;
 
+/**
+ * @brief read data form file in fvecs format
+ * @param filename 文件名
+ * @param p 数据指针
+ * @param n 数据行数
+ * @param dim 数据维度
+ */
 template <typename T>
 void load_fvecs(const char *filename, T *&p, int64_t &n, int64_t &dim) {
-  std::ifstream fs(filename, std::ios::binary);
-  int dim_32;
-  fs.read((char *)&dim_32, 4);
-  dim = dim_32;
-  fs.seekg(0, std::ios::end);
-  n = fs.tellg() / (4 + dim * sizeof(T));
-  fs.seekg(0, std::ios::beg);
-  std::cout << "Read path: " << filename << ", nx: " << n << ", dim: " << dim
-            << std::endl;
-  p = reinterpret_cast<T *>(aligned_alloc(64, n * dim * sizeof(T)));
-  for (int i = 0; i < n; ++i) {
-    fs.seekg(4, std::ios::cur);
-    fs.read((char *)&p[i * dim], dim * sizeof(T));
-  }
-}
-
-int main(int argc, char **argv) {
-  if (argc < 8) {
-    printf("Usage: ./main base_path query_path gt_path graph_path level "
-           "topk search_ef num_threads\n");
+  std::cout << filename <<std::endl;
+  std::ifstream in(filename, std::ios::binary);
+  if(!in.is_open()){
+    std::cout << "open file error" << std::endl;
     exit(-1);
   }
-  std::string base_path = argv[1];
-  std::string query_path = argv[2];
-  std::string gt_path = argv[3];
-  std::string graph_path = argv[4];
-  int level = std::stoi(argv[5]);
-  int topk = std::stoi(argv[6]);
-  int search_ef = std::stoi(argv[7]);
-  int num_threads = 1;
-  int iters = 100;
-  if (argc >= 9) {
-    num_threads = std::stoi(argv[8]);
+  int dim_32;
+  in.read((char *)&dim_32, 4); // 读4字节, dim
+  dim = dim_32;
+  // 移动到末尾
+  in.seekg(0, std::ios::end);
+  // 计算有多少 总字节除以每个vector的大小
+  n = in.tellg() / (4 + dim * sizeof(T));
+  in.seekg(0, std::ios::beg);
+  std::cout << "Read path: " << filename << ", nx: " << n << ", dim: " << dim
+            << std::endl;
+
+  // 分配对齐内存,为后续使用simd指令准备
+  p = reinterpret_cast<T *>(aligned_alloc(64, n * dim * sizeof(T)));
+
+  // read vector line by line
+  for (int i = 0; i < n; ++i) {
+    in.seekg(4, std::ios::cur); // 移动4字节,是因为每行有4字节记录维度
+    in.read((char *)&p[i * dim], dim * sizeof(T)); // 读数据,每次读一个vector
   }
-  if (argc >= 10) {
-    iters = std::stoi(argv[9]);
-  }
-  float *base, *query;
-  int *gt;
+  in.close();
+}
+int main(int argc, char **argv) {
+  
+  std::string base_path;
+  std::string query_path;
+  std::string gt_path;
+  std::string graph_path;
+  int level;
+  int topk;
+  int search_ef;
+  int num_threads;
+  po::options_description desc{"Arguments"};
+  try {
+        desc.add_options()("help,h", "Print information on arguments");
+        desc.add_options()("base_path", po::value<std::string>(&base_path)->required(), "base vector file path");
+        desc.add_options()("query_path", po::value<std::string>(&query_path)->required(), "query vector file path");
+        desc.add_options()("gt_path", po::value<std::string>(&gt_path)->required(),"ground_truth file path");
+        desc.add_options()("graph_path", po::value<std::string>(&graph_path)->required(),"index path");
+        desc.add_options()("level", po::value<int>(&level)->required(),"optimization level");
+        desc.add_options()("topk", po::value<int>(&topk)->required(),"K-ANN");
+        desc.add_options()("ef", po::value<int>(&search_ef)->default_value(32),"search ef for HNSW (cannot be set lower than topk)");
+        desc.add_options()("num_thread", po::value<int>(&num_threads)->default_value(1),"search thread num");
+
+        po::variables_map vm;
+        po::store(po::parse_command_line(argc, argv, desc), vm);
+        if (vm.count("help")) {
+            std::cout << desc;
+            return 0;
+        }
+        po::notify(vm);
+    } catch (const std::exception &ex) {
+        std::cerr << ex.what() << '\n';
+        std::cout << "error" << std::endl;
+        return -1;
+    }
+  float *base = nullptr;
+  float *query = nullptr;
+  int *gt = nullptr;
   int64_t N, dim, nq, gt_k;
+  // load base vector
   load_fvecs(base_path.c_str(), base, N, dim);
+  // load query vector
   load_fvecs(query_path.c_str(), query, nq, dim);
+  // load ground_truth
   load_fvecs(gt_path.c_str(), gt, nq, gt_k);
   if (!std::filesystem::exists(graph_path)) {
-    glass::HNSW hnsw(dim, "L2", 32, 200);
+    glass::HNSW hnsw(dim, "L2", 32, 200); // L->候选(构建ef) R->连接数
     hnsw.Build(base, N);
     hnsw.final_graph.save(graph_path);
   }
@@ -65,9 +102,12 @@ int main(int argc, char **argv) {
   auto searcher = glass::create_searcher(graph, "L2", level);
   searcher->SetData(base, N, dim);
   searcher->Optimize(num_threads);
+  // search_ef the size of the dynamic list for the nearest neighbors (used during the search). Higher ef leads to more accurate but slower search. ef cannot be set lower than the number of queried nearest neighbors k.
+  // The value ef of can be anything between k and the size of the dataset.
   searcher->SetEf(search_ef);
   double recall;
   double best_qps = 0.0;
+  int iters = 1;
   for (int iter = 1; iter <= iters; ++iter) {
     printf("iter : [%d/%d]\n", iter, iters);
     std::vector<int> pred(nq * topk);

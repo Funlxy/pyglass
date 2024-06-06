@@ -61,6 +61,7 @@ struct NSG : public Builder {
     {
       Graph<Node> tmp_graph(n, R);
       link(knng, tmp_graph);
+      printf("finish link\n");
       final_graph.init(n, R);
       std::fill_n(final_graph.data, n * R, EMPTY_ID);
       final_graph.eps = {ep};

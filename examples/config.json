@@ -7,7 +7,6 @@
     "glove-25-angular"
   ],
   "index_types": [
-    "HNSW",
     "NSG"
   ],
   "R": 32,

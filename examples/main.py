@@ -7,8 +7,7 @@ import os
 import json
 
 import glassppy as glass
-from datasets import dataset_dict
-
+from ann_dataset import dataset_dict
 
 class Glass:
     def __init__(self, name, level, metric, method_param):
@@ -22,7 +21,7 @@ class Glass:
         self.dir = 'indices'
         self.path = f'{name}_{self.index_type}_R_{self.R}_L_{self.L}.glass'
         self.level = level
-
+ 
     def fit(self, X):
         if self.metric == "IP":
             X = preprocessing.normalize(X, "l2", axis=1)
@@ -84,7 +83,6 @@ class Glass:
 
 if __name__ == '__main__':
     plt.style.use('seaborn-whitegrid')
-
     with open('examples/config.json', 'r') as f:
         config = json.load(f)
 
@@ -106,12 +104,16 @@ if __name__ == '__main__':
     for dataset_name in dataset_names:
         plt.figure(figsize=(10, 6), dpi=120)
         dataset = dataset_dict[dataset_name]()
-        base = dataset.get_base()
+        # base
+        base = dataset.get_database()
+        # query
         query = dataset.get_queries()
+        # groundtruth
         gt = dataset.get_groundtruth(topk)
         name = dataset.name
         metric = dataset.metric
-        nq = dataset.nq
+        nq = len(query)
+        print(nq)
         for it, index_type in enumerate(index_types):
             for level in levels:
                 p = Glass(name, level, metric, {

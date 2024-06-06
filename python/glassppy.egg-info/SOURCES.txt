@@ -1,0 +1,10 @@
+setup.py
+./bindings.cc
+ann_dataset/__init__.py
+ann_dataset/dataset.py
+glassppy.egg-info/PKG-INFO
+glassppy.egg-info/SOURCES.txt
+glassppy.egg-info/dependency_links.txt
+glassppy.egg-info/not-zip-safe
+glassppy.egg-info/requires.txt
+glassppy.egg-info/top_level.txt

@@ -1,0 +1,8 @@
+Metadata-Version: 2.1
+Name: glassppy
+Version: 1.0.3
+Summary: Graph Library for Approximate Similarity Search
+Author: 
+Requires-Dist: numpy
+
+Graph Library for Approximate Similarity Search
