@@ -13,24 +13,38 @@ namespace glass {
 
 constexpr int EMPTY_ID = -1;
 
-template <typename node_t> struct Graph {
-  int N, K;
+/***********************************************************
+ * Graph structure to store a graph.
+ *
+ * It is represented by an adjacency matrix `data`, where
+ * data[i, j] is the j-th neighbor of node i.
+ ***********************************************************/
+template <typename node_t> 
+struct Graph {
 
-  node_t *data = nullptr;
+  int N; // total number of nodes
+  int K; // number of neighbors per node
 
-  std::unique_ptr<HNSWInitializer> initializer = nullptr;
+  node_t *data = nullptr; // the flattened adjacency matrix, size N-by-K
 
-  std::vector<int> eps;
+  std::unique_ptr<HNSWInitializer> initializer = nullptr; // 为了适配HNSW算法,NSG中用不到
+
+  std::vector<int> eps; // HNSW需要多个eps,NSG只需要一个(一般来说)
 
   Graph() = default;
-
+  
   Graph(node_t *edges, int N, int K) : N(N), K(K), data(edges) {}
 
+  // construct an empty graph
+  // NOTE: the newly allocated data needs to be destroyed at destruction time
   Graph(int N, int K)
       : N(N), K(K), data((node_t *)alloc2M((size_t)N * K * sizeof(node_t))) {}
 
+  // copy constructor
   Graph(const Graph &g) : Graph(g.N, g.K) {
     this->eps = g.eps;
+
+    // 为啥不用memcpy ?
     for (int i = 0; i < N; ++i) {
       for (int j = 0; j < K; ++j) {
         at(i, j) = g.at(i, j);
@@ -41,6 +55,8 @@ template <typename node_t> struct Graph {
     }
   }
 
+  // 跟前面构造一个空图是一样的？
+  // 区别是这里memset成了-1
   void init(int N, int K) {
     data = (node_t *)alloc2M((size_t)N * K * sizeof(node_t));
     std::memset(data, -1, N * K * sizeof(node_t));
@@ -59,6 +75,7 @@ template <typename node_t> struct Graph {
   node_t &at(int i, int j) { return data[i * K + j]; }
 
   void prefetch(int u, int lines) const {
+    // edges(u)返回u邻居数组指针
     mem_prefetch((char *)edges(u), lines);
   }
 

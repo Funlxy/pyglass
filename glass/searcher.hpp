@@ -8,6 +8,7 @@
 #include <string>
 #include <thread>
 #include <type_traits>
+#include <utility>
 #include <vector>
 
 #include "glass/common.hpp"
@@ -21,7 +22,7 @@ namespace glass {
 struct SearcherBase {
   virtual void SetData(const float *data, int n, int dim) = 0;
   virtual void Optimize(int num_threads = 0) = 0;
-  virtual void Search(const float *q, int k, int *dst) const = 0;
+  virtual void Search(const float *q, int k, std::pair<int,float> *dst) const = 0;
   virtual void SetEf(int ef) = 0;
   virtual ~SearcherBase() = default;
 };
@@ -37,8 +38,8 @@ template <typename Quantizer> struct Searcher : public SearcherBase {
   int ef = 32;
 
   // Memory prefetch parameters
-  int po = 1;
-  int pl = 1;
+  int po = 1; // 预取邻居数
+  int pl = 1; // 预取cacheline
 
   // Optimization parameters
   constexpr static int kOptimizePoints = 1000;
@@ -51,12 +52,16 @@ template <typename Quantizer> struct Searcher : public SearcherBase {
 
   Searcher(const Graph<int> &graph) : graph(graph), graph_po(graph.K / 16) {}
 
+  // 
   void SetData(const float *data, int n, int dim) override {
     this->nb = n;
     this->d = dim;
+
+    // 量化
     quant = Quantizer(d);
     quant.train(data, n);
 
+    // 随机采样
     sample_points_num = std::min(kOptimizePoints, nb - 1);
     std::vector<int> sample_points(sample_points_num);
     std::mt19937 rng;
@@ -70,6 +75,7 @@ template <typename Quantizer> struct Searcher : public SearcherBase {
 
   void SetEf(int ef) override { this->ef = ef; }
 
+  // 优化预取参数,加快查询时间
   void Optimize(int num_threads = 0) override {
     if (num_threads == 0) {
       num_threads = std::thread::hardware_concurrency();
@@ -79,7 +85,8 @@ template <typename Quantizer> struct Searcher : public SearcherBase {
         std::min(kTryPls, (int)upper_div(quant.code_size, 64)));
     std::iota(try_pos.begin(), try_pos.end(), 1);
     std::iota(try_pls.begin(), try_pls.end(), 1);
-    std::vector<int> dummy_dst(kTryK);
+
+    std::vector<std::pair<int, float>> dummy_dst(kTryK);
     printf("=============Start optimization=============\n");
     { // warmup
 #pragma omp parallel for schedule(dynamic) num_threads(num_threads)
@@ -126,13 +133,21 @@ template <typename Quantizer> struct Searcher : public SearcherBase {
     this->pl = best_pl;
   }
 
-  void Search(const float *q, int k, int *dst) const override {
+
+  /**
+  q:查询向量
+  k:topk
+  dst:存储结果
+   */
+  void Search(const float *q, int k, std::pair<int,float> *dst) const override {
     auto computer = quant.get_computer(q);
+    // 构建顺序数组
     searcher::LinearPool<typename Quantizer::template Computer<0>::dist_type>
         pool(nb, std::max(k, ef), k);
+      
     graph.initialize_search(pool, computer);
-    SearchImpl(pool, computer);
-    quant.reorder(pool, q, dst, k);
+    SearchImpl(pool, computer); // 注意id为什么要& mask?
+    quant.reorder(pool, q, dst, k); // 这里可以把距离存下来,同时只取前k个
   }
 
   template <typename Pool, typename Computer>
@@ -140,7 +155,7 @@ template <typename Quantizer> struct Searcher : public SearcherBase {
     while (pool.has_next()) {
       auto u = pool.pop();
       graph.prefetch(u, graph_po);
-      for (int i = 0; i < po; ++i) {
+      for (int i = 0; i < po; ++i) { // 这边是预取到cache中
         int to = graph.at(u, i);
         computer.prefetch(to, pl);
       }
@@ -149,16 +164,16 @@ template <typename Quantizer> struct Searcher : public SearcherBase {
         if (v == -1) {
           break;
         }
-        if (i + po < graph.K && graph.at(u, i + po) != -1) {
+        if (i + po < graph.K && graph.at(u, i + po) != -1) { // 又预取
           int to = graph.at(u, i + po);
           computer.prefetch(to, pl);
         }
-        if (pool.vis.get(v)) {
+        if (pool.vis.get(v)) { // 访问过了，跳过；
           continue;
         }
         pool.vis.set(v);
         auto cur_dist = computer(v);
-        pool.insert(v, cur_dist);
+        pool.insert(v, cur_dist); // 加入pool中
       }
     }
   }
@@ -168,6 +183,7 @@ inline std::unique_ptr<SearcherBase> create_searcher(const Graph<int> &graph,
                                                      const std::string &metric,
                                                      int level = 1) {
   auto m = metric_map[metric];
+  // level 控制量化程度
   if (level == 0) {
     if (m == Metric::L2) {
       return std::make_unique<Searcher<FP32Quantizer<Metric::L2>>>(graph);

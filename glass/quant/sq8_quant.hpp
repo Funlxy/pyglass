@@ -7,17 +7,20 @@
 #include "glass/simd/distance.hpp"
 
 #include <cmath>
+#include <utility>
 #include <vector>
 
 namespace glass {
 
+// 8bit 0-255
 template <Metric metric, int DIM = 0> struct SQ8Quantizer {
   using data_type = uint8_t;
-  constexpr static int kAlign = 16;
+  constexpr static int kAlign = 16; // 保证是16的倍数。
+  // 数据的纬度,对齐纬度？ myabe。。。。。
   int d, d_align;
   int64_t code_size;
-  char *codes = nullptr;
-  std::vector<float> mx, mi, dif;
+  char *codes = nullptr; // 指向存储量化后数据的指针
+  std::vector<float> mx, mi, dif; // 每个纬度的最大值,每个纬度的最小值，以及两者之间的差值
 
   SQ8Quantizer() = default;
 
@@ -27,29 +30,30 @@ template <Metric metric, int DIM = 0> struct SQ8Quantizer {
 
   ~SQ8Quantizer() { free(codes); }
 
-  void train(const float *data, int n) {
+  void train(const float *data, int n) { 
     for (int64_t i = 0; i < n; ++i) {
       for (int64_t j = 0; j < d; ++j) {
-        mx[j] = std::max(mx[j], data[i * d + j]);
-        mi[j] = std::min(mi[j], data[i * d + j]);
+        mx[j] = std::max(mx[j], data[i * d + j]); // 计算每一维的最大值
+        mi[j] = std::min(mi[j], data[i * d + j]); // 计算每一维的最小值
       }
     }
     for (int64_t j = 0; j < d; ++j) {
-      dif[j] = mx[j] - mi[j];
+      dif[j] = mx[j] - mi[j]; // 记录每一位最大值与最小值的差距
     }
     for (int64_t j = d; j < d_align; ++j) {
-      dif[j] = mx[j] = mi[j] = 0;
+      dif[j] = mx[j] = mi[j] = 0; // 后面 d-d_align为0?
     }
-    codes = (char *)alloc2M((size_t)n * code_size);
+    // code_size是对齐后的纬度
+    codes = (char *)alloc2M((size_t)n * code_size); // 分配内存
     for (int i = 0; i < n; ++i) {
-      encode(data + i * d, get_data(i));
+      encode(data + i * d, get_data(i)); // 每一维量化成8bit
     }
   }
 
   char *get_data(int u) const { return codes + u * code_size; }
 
   void encode(const float *from, char *to) const {
-    for (int j = 0; j < d; ++j) {
+    for (int j = 0; j < d; ++j) { // 每一维量化成8bit表示
       float x = (from[j] - mi[j]) / dif[j];
       if (x < 0) {
         x = 0.0;
@@ -63,9 +67,10 @@ template <Metric metric, int DIM = 0> struct SQ8Quantizer {
   }
 
   template <typename Pool>
-  void reorder(const Pool &pool, const float * /**q*/, int *dst, int k) const {
+  void reorder(const Pool &pool, const float * /**q*/, std::pair<int, float> *dst, int k) const {
     for (int i = 0; i < k; ++i) {
-      dst[i] = pool.id(i);
+      dst[i].first = pool.id(i);
+      dst[i].second = pool.get_dist(i);
     }
   }
 

@@ -13,14 +13,16 @@
 namespace glass {
 
 struct NSG : public Builder {
-  int d;
-  std::string metric;
-  int R;
-  int L;
-  int C;
+
+
+  int d; // 向量维度
+  std::string metric; // 度量函数
+  int R; // 每个点的邻居数量
+  int L; // 候选集大小
+  int C; // 在prune中使用的参数
   int nb;
-  float *data;
-  int ep;
+  float *data; // 
+  int ep; // entry_point
   Graph<int> final_graph;
   RandomGenerator rng; ///< random generator
   Dist<float, float, float> dist_func;
@@ -33,6 +35,8 @@ struct NSG : public Builder {
   explicit NSG(int dim, const std::string &metric, int R = 32, int L = 200)
       : d(dim), metric(metric), R(R), L(L), rng(0x0903) {
     this->C = R + 100;
+
+    // 随机种子    
     srand(0x1998);
     if (metric == "L2") {
       dist_func = L2SqrRef;
@@ -46,6 +50,7 @@ struct NSG : public Builder {
     this->nndescent_iter = 10;
   }
 
+  // base data and number
   void Build(float *data, int n) override {
     this->nb = n;
     this->data = data;

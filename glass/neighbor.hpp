@@ -35,6 +35,7 @@ template <typename Block = uint64_t> struct Bitset {
   void *block_address(int i) { return data + i / block_size; }
 };
 
+// 邻居结构体定义
 template <typename dist_t = float> struct Neighbor {
   int id;
   dist_t distance;
@@ -51,20 +52,24 @@ template <typename dist_t = float> struct Neighbor {
   }
 };
 
+
+// 大根堆实现
 template <typename dist_t> struct MaxHeap {
   explicit MaxHeap(int capacity) : capacity(capacity), pool(capacity) {}
   void push(int u, dist_t dist) {
     if (size < capacity) {
       pool[size] = {u, dist};
-      std::push_heap(pool.begin(), pool.begin() + ++size);
+      // 插入
+      std::push_heap(pool.begin(), pool.begin() + ++size); // 默认大根堆
     } else if (dist < pool[0].distance) {
       sift_down(0, u, dist);
     }
   }
-  int pop() {
+  std::pair<int,dist_t> pop() {
     std::pop_heap(pool.begin(), pool.begin() + size--);
-    return pool[size].id;
+    return {pool[size].id,pool[size].distance};
   }
+  // 下沉
   void sift_down(int i, int u, dist_t dist) {
     pool[0] = {u, dist};
     for (; 2 * i + 1 < size;) {
@@ -85,9 +90,15 @@ template <typename dist_t> struct MaxHeap {
     pool[i] = {u, dist};
   }
   int size = 0, capacity;
+
+  // 实现了align_alloc的vector
   std::vector<Neighbor<dist_t>, align_alloc<Neighbor<dist_t>>> pool;
 };
 
+// 最小最大堆
+// O(1) 查询
+// O(logn) 插入
+// 节省空间
 template <typename dist_t> struct MinMaxHeap {
   explicit MinMaxHeap(int capacity) : capacity(capacity), pool(capacity) {}
   bool push(int u, dist_t dist) {
@@ -133,6 +144,9 @@ template <typename dist_t> struct MinMaxHeap {
   std::vector<Neighbor<dist_t>, align_alloc<Neighbor<dist_t>>> pool;
 };
 
+// 有序数组, 支持二分查找
+// 存的是原始id . 为什么需要&上一个mask呢? 已解决
+// cur? pop以及insert会更改cur. 明白了,cur是当前pool里面最小元素的下标吧？
 template <typename dist_t> struct LinearPool {
   LinearPool(int n, int capacity, int = 0)
       : nb(n), capacity_(capacity), data_(capacity_ + 1), vis(n) {}
@@ -141,34 +155,37 @@ template <typename dist_t> struct LinearPool {
     int lo = 0, hi = size_;
     while (lo < hi) {
       int mid = (lo + hi) / 2;
-      if (data_[mid].distance > dist) {
+      if (data_[mid].distance > dist) { // 右边都是大于的
         hi = mid;
       } else {
-        lo = mid + 1;
+        lo = mid + 1; // 左边都是小于等于的
       }
     }
-    return lo;
+    return lo; // 返回小于等于dist的最后一个位置
   }
 
   bool insert(int u, dist_t dist) {
+    // 满了，且比pool内所有元素的距离不小
     if (size_ == capacity_ && dist >= data_[size_ - 1].distance) {
       return false;
     }
     int lo = find_bsearch(dist);
+    // data[lo] ~ data[size] 全都往后移一位
+    // 然后data[lo] 赋值为新插入的
     std::memmove(&data_[lo + 1], &data_[lo],
-                 (size_ - lo) * sizeof(Neighbor<dist_t>));
+                 (size_ - lo) * sizeof(Neighbor<dist_t>)); //
     data_[lo] = {u, dist};
-    if (size_ < capacity_) {
+    if (size_ < capacity_) { // 小于capacity才更新size
       size_++;
     }
-    if (lo < cur_) {
+    if (lo < cur_) { // 这个cur_具体作用？不太理解它的实现方式。插入的时候要更新当前指针？
       cur_ = lo;
     }
     return true;
   }
 
   int pop() {
-    set_checked(data_[cur_].id);
+    set_checked(data_[cur_].id); // 这里原始id会变。
     int pre = cur_;
     while (cur_ < size_ && is_checked(data_[cur_].id)) {
       cur_++;
@@ -181,11 +198,11 @@ template <typename dist_t> struct LinearPool {
   int size() const { return size_; }
   int capacity() const { return capacity_; }
 
-  constexpr static int kMask = 2147483647;
-  int get_id(int id) const { return id & kMask; }
-  void set_checked(int &id) { id |= 1 << 31; }
-  bool is_checked(int id) { return id >> 31 & 1; }
-
+  constexpr static int kMask = 2147483647; //32位最大整数
+  int get_id(int id) const { return id & kMask; } // 知道了为什么&kMask,因为有些set_checked的时候变了，需要恢复
+  void set_checked(int &id) { id |= 1 << 31; } // pop后最高位至1;tomb标志?(1<<31)-1是int最大值哦
+  bool is_checked(int id) { return id >> 31 & 1; } // 然后检查这个tomb tag?
+  dist_t get_dist(int i)  const {return data_[i].distance;}
   int nb, size_ = 0, cur_ = 0, capacity_;
   std::vector<Neighbor<dist_t>, align_alloc<Neighbor<dist_t>>> data_;
   Bitset<uint64_t> vis;

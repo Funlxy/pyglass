@@ -1,0 +1,1 @@
+--base_path ../datasets/sift/sift_base.fvecs --query_path ../datasets/sift/sift_query.fvecs --gt_path ../datasets/sift/sift_groundtruth.ivecs --graph_path ../datasets/sift/sift1M.glass --level 0 --topk 10 --ef 100

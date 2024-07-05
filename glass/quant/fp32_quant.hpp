@@ -32,9 +32,10 @@ template <Metric metric, int DIM = 0> struct FP32Quantizer {
   char *get_data(int u) const { return codes + u * code_size; }
 
   template <typename Pool>
-  void reorder(const Pool &pool, const float *, int *dst, int k) const {
+  void reorder(const Pool &pool, const float *, std::pair<int,float> *dst, int k) const {
     for (int i = 0; i < k; ++i) {
-      dst[i] = pool.id(i);
+      dst[i].first = pool.id(i);
+      dst[i].second = pool.get_dist(i);
     }
   }
 

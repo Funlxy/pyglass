@@ -6,7 +6,7 @@ if [ -d "build" ]; then
 fi
 mkdir -p build
 cd build
-cmake .. && make -j
+cmake .. -DCMAKE_EXPORT_COMPILE_COMMANDS=ON && make -j
 prefix=../datasets/sift
 
 ef_values=(10 15 20 30 40 60 80 100 150 200 300)

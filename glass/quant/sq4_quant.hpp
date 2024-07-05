@@ -30,6 +30,7 @@ struct SQ4Quantizer {
 
   ~SQ4Quantizer() { free(codes); }
 
+  // 得到每一维的最大值、最小值
   void train(const float *data, int n) {
     for (int64_t i = 0; i < n * d; ++i) {
       mx = std::max(mx, data[i]);
@@ -63,8 +64,9 @@ struct SQ4Quantizer {
     }
   }
 
+  // TODO: 带距离
   template <typename Pool>
-  void reorder(const Pool &pool, const float *q, int *dst, int k) const {
+  void reorder(const Pool &pool, const float *q, std::pair<int,typename Reorderer::template Computer<0>::dist_type> *dst, int k) const {
     int cap = pool.capacity();
     auto computer = reorderer.get_computer(q);
     searcher::MaxHeap<typename Reorderer::template Computer<0>::dist_type> heap(
