@@ -126,7 +126,7 @@ int main(int argc, char **argv) {
 
   double recall;
   double best_qps = 0.0;
-  int iters = 10;
+  int iters = 1;
   for (int iter = 1; iter <= iters; ++iter) {
     printf("iter : [%d/%d]\n", iter, iters);
     std::vector<std::pair<int,float>> pred(nq * topk);
@@ -138,7 +138,7 @@ int main(int argc, char **argv) {
     
     // for (int i = 0 ; i < nq ; ++ i){
     //   for(int j = 0 ; j < topk ; j ++){
-    //     std::cout << pred[i*topk +j].first << " ";
+    //     std::cout << pred[i*topk +j].second << " ";
     //   }
     //   std::cout << "\n";
     // }
